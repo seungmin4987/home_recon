@@ -9,6 +9,7 @@ from trimesh.transformations import rotation_matrix
 
 import tkinter as tk
 from tkinter import ttk, messagebox, simpledialog
+from tkinter import font as tkfont
 from PIL import Image, ImageTk
 
 
@@ -37,7 +38,7 @@ def _deepcopy_mesh(mesh: trimesh.Trimesh) -> trimesh.Trimesh:
     return m
 
 # ============================================================
-# 🔧 템플릿 Up-Axis 보정 각도
+# 템플릿 Up-Axis 보정 각도
 # ============================================================
 TEMPLATE_ROT_X_DEG = 90.0   # 예: Y-up -> Z-up
 TEMPLATE_ROT_Y_DEG = 0.0
@@ -272,7 +273,7 @@ def align_scene_and_compute_ceiling(plane_flipped: bool = True):
     2) z≈0 으로 floor snap
     3) z 분포(95% quantile)로 천장 높이 자동 추정
     4) 정렬된 scene, auto_ceiling_height, aligned_bounds, 정렬된 pts/cols 반환
-       👉 dump 다회 호출 대신 캐시된 병합 메쉬와 단일 quantile 패스 사용
+       dump 다회 호출 대신 캐시된 병합 메쉬와 단일 quantile 패스 사용
     """
     base_mesh, plane_eq = _get_cached_base_mesh()
     pts_raw, cols_raw = _points_and_colors_from_mesh(base_mesh)
@@ -425,10 +426,10 @@ class SnapshotFloorApp(tk.Tk):
         self.width_entry_var = tk.StringVar()
         self.depth_entry_var = tk.StringVar()
 
-        # 🔁 평면 뒤집기 상태 플래그 (False: 원본, True: n,d에 -를 곱한 상태)
+        # 평면 뒤집기 상태 플래그 (False: 원본, True: n,d에 -를 곱한 상태)
         self.plane_flipped = False#True
 
-        # 🔍 거리 설정 관련 상태
+        # 거리 설정 관련 상태
         self.measure_mode = False
         self.measure_points_canvas = []  # [(px,py), ...]
         self.measure_points_world = []   # [(wx,wy), ...]
@@ -436,7 +437,7 @@ class SnapshotFloorApp(tk.Tk):
         self.measure_line_id = None      # 캔버스 위 선 표시용 아이템 id
         self.measure_real_dist_m = None  # 사용자가 입력한 실제 거리(m)
 
-        # ⭐ 메트릭 스케일 (기본 1.0) – 평면 뒤집기 후에도 유지
+        # 메트릭 스케일 (기본 1.0) – 평면 뒤집기 후에도 유지
         self.metric_scale = 1.0
 
         # 🎥 실시간 3D 미리보기 상태
@@ -469,9 +470,121 @@ class SnapshotFloorApp(tk.Tk):
         self._load_and_align_scene()
         self._load_templates_from_dir()
         self.after(200, self._initial_render)
+        # 앱 시작 시 거리 설정 안내 후 곧바로 측정 모드로 진입
+        self.after(300, self._prompt_initial_measurement)
 
     # ----------------- UI -----------------
     def _build_ui(self):
+        # ---------- 다크 테마 팔레트 ----------
+        palette = {
+            "bg_main": "#0f1115",
+            "panel": "#151921",
+            "canvas": "#1b1f27",
+            "text": "#f5f5f5",
+            "subtext": "#c4c4c4",
+            "accent": "#3a6aa8",
+            "accent_pressed": "#2f5989",
+            "accent_hover": "#4b7fbf",
+            "outline": "#2b3240",
+            "entry_bg": "#0f1115",
+            "entry_fg": "#f5f5f5",
+            "trough": "#1f242e",
+        }
+
+        # 루트 배경
+        self.configure(bg=palette["bg_main"])
+
+        style = ttk.Style()
+        try:
+            style.theme_use("clam")
+        except Exception:
+            pass
+
+        # Combobox 드롭다운 리스트 가독성 개선
+        try:
+            self.option_add("*TCombobox*Listbox.background", palette["panel"])
+            self.option_add("*TCombobox*Listbox.foreground", palette["text"])
+            self.option_add("*TCombobox*Listbox.selectBackground", palette["accent"])
+            self.option_add("*TCombobox*Listbox.selectForeground", palette["text"])
+        except Exception:
+            pass
+
+        # 기본 폰트 살짝 키워서 가독성 향상
+        try:
+            default_font = tkfont.nametofont("TkDefaultFont")
+            default_font.configure(size=max(default_font.cget("size"), 11))
+            text_font = tkfont.nametofont("TkTextFont")
+            text_font.configure(size=max(text_font.cget("size"), 11))
+        except Exception:
+            pass
+
+        style.configure(
+            "TFrame",
+            background=palette["panel"],
+        )
+        style.configure(
+            "TLabelframe",
+            background=palette["panel"],
+            foreground=palette["text"],
+            bordercolor=palette["outline"]
+        )
+        style.configure(
+            "TLabelframe.Label",
+            background=palette["panel"],
+            foreground=palette["text"]
+        )
+        style.configure(
+            "TLabel",
+            background=palette["panel"],
+            foreground=palette["text"]
+        )
+        style.configure(
+            "TButton",
+            background=palette["accent"],
+            foreground=palette["text"],
+            bordercolor=palette["outline"],
+            focusthickness=2,
+            focustcolor=palette["outline"],
+            padding=(6, 4)
+        )
+        style.map(
+            "TButton",
+            background=[
+                ("pressed", palette["accent_pressed"]),
+                ("active", palette["accent_hover"])
+            ]
+        )
+        style.configure(
+            "TEntry",
+            fieldbackground=palette["entry_bg"],
+            foreground=palette["entry_fg"],
+            background=palette["entry_bg"],
+            bordercolor=palette["outline"],
+            lightcolor=palette["outline"],
+            darkcolor=palette["outline"]
+        )
+        style.configure(
+            "TCombobox",
+            fieldbackground=palette["entry_bg"],
+            background=palette["entry_bg"],
+            foreground=palette["entry_fg"],
+            bordercolor=palette["outline"],
+            arrowcolor=palette["text"]
+        )
+        style.configure(
+            "Horizontal.TScale",
+            background=palette["panel"],
+            troughcolor=palette["trough"]
+        )
+        style.configure(
+            "TNotebook",
+            background=palette["panel"]
+        )
+        style.configure(
+            "TScrollbar",
+            background=palette["panel"]
+        )
+
         style = ttk.Style()
         style.configure("TButton", padding=(4, 2))
 
@@ -485,7 +598,7 @@ class SnapshotFloorApp(tk.Tk):
         canvas_wrap.rowconfigure(0, weight=1)
         canvas_wrap.columnconfigure(0, weight=1)
 
-        self.canvas = tk.Canvas(canvas_wrap, bg="#dcdcdc")
+        self.canvas = tk.Canvas(canvas_wrap, bg=palette["canvas"], highlightthickness=0)
         self.canvas.grid(row=0, column=0, sticky="nsew")
 
         self.canvas.bind("<ButtonPress-1>", self.on_mouse_down)
@@ -507,12 +620,7 @@ class SnapshotFloorApp(tk.Tk):
         self.btn_place = ttk.Button(
             top_btns, text="가구 배치 모드: OFF", command=self.toggle_placement_mode
         )
-        self.btn_place.grid(row=0, column=0, sticky="ew", padx=2, pady=(0, 4))
-
-        self.btn_measure = ttk.Button(
-            top_btns, text="거리 설정 모드: OFF", command=self.toggle_measure_mode
-        )
-        self.btn_measure.grid(row=0, column=1, sticky="ew", padx=2, pady=(0, 4))
+        self.btn_place.grid(row=0, column=0, columnspan=2, sticky="ew", padx=2, pady=(0, 4))
 
         self.btn_live3d = ttk.Button(
             top_btns, text="실시간 3D 미리보기: OFF", command=self.toggle_live_preview
@@ -624,27 +732,39 @@ class SnapshotFloorApp(tk.Tk):
         for idx in range(len(self.furniture_items)):
             self._redraw_furniture(idx)
 
-    # ----------------- 거리 설정 모드 토글 -----------------
-    def toggle_measure_mode(self):
-        self.measure_mode = not self.measure_mode
-        self.ruler_dragging_point = None  # 측정 모드 전환 시 자 드래그 종료
+    # ----------------- 거리 설정 진입/종료 + 안내 -----------------
+    def _prompt_initial_measurement(self):
+        """
+        앱 시작 시 한번만 안내 메시지를 띄우고 측정 모드로 전환한다.
+        """
         if self.measure_mode:
-            # 거리 측정 켜면 가구 배치 모드 끔
-            self.placement_mode = False
-            self.btn_place.config(text="가구 배치 모드: OFF")
-            self.btn_measure.config(text="거리 설정 모드: ON")
+            return
+        try:
+            messagebox.showinfo("거리 설정", "두 지점을 선택 한 후, 실제 거리를 입력하세요.")
+        except Exception:
+            pass
+        self._enter_measure_mode()
 
-            # 이전 측정 결과 초기화 (캔버스 상 표시만)
-            for cid in self.measure_point_ids:
-                self.canvas.delete(cid)
-            self.measure_point_ids.clear()
-            if self.measure_line_id is not None:
-                self.canvas.delete(self.measure_line_id)
-                self.measure_line_id = None
-            self.measure_points_canvas.clear()
-            # measure_points_world / metric_scale / 가구 등은 유지
-        else:
-            self.btn_measure.config(text="거리 설정 모드: OFF")
+    def _enter_measure_mode(self):
+        self.measure_mode = True
+        self.ruler_dragging_point = None  # 측정 모드 전환 시 자 드래그 종료
+        # 거리 측정 켜면 가구 배치 모드 끔
+        self.placement_mode = False
+        self.btn_place.config(text="가구 배치 모드: OFF")
+
+        # 이전 측정 결과 초기화 (캔버스 상 표시만)
+        for cid in self.measure_point_ids:
+            self.canvas.delete(cid)
+        self.measure_point_ids.clear()
+        if self.measure_line_id is not None:
+            self.canvas.delete(self.measure_line_id)
+            self.measure_line_id = None
+        self.measure_points_canvas.clear()
+        # measure_points_world / metric_scale / 가구 등은 유지
+
+    def _exit_measure_mode(self):
+        self.measure_mode = False
+        self.ruler_dragging_point = None
 
     # ----------------- 가상 자 기본 위치 보장 -----------------
     def _ensure_ruler_world_default(self, bounds):
@@ -698,7 +818,7 @@ class SnapshotFloorApp(tk.Tk):
             auto_ceiling_height_scaled = auto_ceiling_height
 
         # 3) 서브천장 높이
-        ratio = 0.95
+        ratio = 0.90
         sub_height = auto_ceiling_height_scaled * ratio
         print(f"[INFO] sub-ceiling height = {sub_height:.3f} (ratio={ratio})")
 
@@ -1425,7 +1545,6 @@ class SnapshotFloorApp(tk.Tk):
             messagebox.showinfo(
                 "스케일 적용 완료",
                 f"스케일 factor = {scale:.4f} 가 적용되었습니다.\n"
-                f"3D 뷰어에서 해당 선을 확인할 수 있습니다."
             )
 
             # 스냅샷/가구 다시 렌더 (이 과정에서 가상 자도 새 길이로 재생성됨)
@@ -1436,14 +1555,14 @@ class SnapshotFloorApp(tk.Tk):
 
             # 거리 설정 모드 종료
             self._schedule_live_preview_refresh()
-            self.toggle_measure_mode()
+            self._exit_measure_mode()
 
     # ----------------- 3D 씬 구성 (방 + 가구 + 가상자) -----------------
     def _build_scene_with_furniture(self):
         """
         - self.scene_plane (방 + clip된 포인트)
         - 가구 메쉬들
-        - ✅ 가상 자 3D 박스 (ruler_enabled 일 때만)
+        - 가상 자 3D 박스 (ruler_enabled 일 때만)
         """
         if self.scene_plane is None:
             return None
@@ -1498,7 +1617,7 @@ class SnapshotFloorApp(tk.Tk):
 
                 scene.add_geometry(mesh)
 
-        # ✅ 가상 자 3D 표시 (ON 일 때만) - 최종 bounds(가구 포함) 기준으로 높이 계산
+        # 가상 자 3D 표시 (ON 일 때만) - 최종 bounds(가구 포함) 기준으로 높이 계산
         if self.ruler_enabled:
             try:
                 bmin_r, bmax_r = scene.bounds

@@ -28,15 +28,15 @@ class LauncherApp(tk.Tk):
 
         ttk.Label(self, text="Virtual Model House", style="Title.TLabel").pack(pady=(18, 4))
         ttk.Label(self,
-                  text="3D 재구성과 배치 시뮬레이션을\n한 곳에서 실행하세요.",
+                  text="3D 집을 만들고 가구 배치 시뮬레이션을\n진행 하실 수 있습니다.",
                   style="Sub.TLabel").pack(pady=(0, 10))
 
         btn_frame = ttk.Frame(self)
         btn_frame.pack(pady=8, padx=20, fill="x")
 
-        ttk.Button(btn_frame, text="1. Reconstruction Studio 열기", style="Primary.TButton",
+        ttk.Button(btn_frame, text="3D 모델 만들기", style="Primary.TButton",
                    command=self.launch_gui).pack(fill="x", pady=5)
-        ttk.Button(btn_frame, text="2. Furniture Simulator 열기", style="Secondary.TButton",
+        ttk.Button(btn_frame, text="가구 배치 시뮬레이터", style="Secondary.TButton",
                    command=self.launch_simulator).pack(fill="x", pady=5)
 
         self.status_var = tk.StringVar(value="대기 중")
@@ -88,7 +88,7 @@ class LauncherApp(tk.Tk):
         try:
             new_proc = subprocess.Popen([sys.executable, script_path], cwd=self.base_dir)
             setattr(self, proc_attr, new_proc)
-            self.status_var.set(f"{label} 실행 중 (PID {new_proc.pid})")
+            self.status_var.set(f"{label} 실행 중")
         except Exception as e:
             messagebox.showerror("실행 실패", str(e))
 
